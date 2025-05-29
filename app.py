@@ -335,10 +335,9 @@ def run_prediction_app():
             st.dataframe(input_df_engineered)
             
 #====================================================================================#
-# Halaman Informasi Model (Tidak ada perubahan signifikan dari versi sebelumnya)
+# Halaman Informasi Model (DENGAN PERBAIKAN TAMPILAN PIPELINE)
 #====================================================================================#
 def show_model_info_page():
-    # ... (Isi sama seperti versi app.py sebelumnya yang sudah disesuaikan) ...
     st.markdown("## 📖 Informasi Detail Model Prediksi")
     st.markdown(f"""
     Model prediktif yang menjadi tulang punggung aplikasi ini adalah **XGBoost Regressor** yang dipaketkan dalam pipeline Scikit-learn.
@@ -368,21 +367,50 @@ def show_model_info_page():
     
     if pipeline_model is not None:
         st.markdown("#### Detail Pipeline dan Parameter Estimator Inti (XGBoost):")
-        st.write("Struktur Pipeline Model:")
-        st.write(pipeline_model) 
+        
+        # Tampilkan langkah-langkah pipeline
+        st.write("**Struktur Langkah-langkah Pipeline:**")
+        if hasattr(pipeline_model, 'steps'):
+            for i, (step_name, step_estimator) in enumerate(pipeline_model.steps):
+                st.text(f"Langkah {i+1}: {step_name}")
+                # Untuk ColumnTransformer, kita bisa coba tampilkan transformernya
+                if hasattr(step_estimator, 'transformers') and step_estimator.transformers:
+                    st.text("  Transformers di dalam ColumnTransformer:")
+                    for t_name, t_obj, t_cols in step_estimator.transformers_:
+                        st.text(f"    - {t_name}: {type(t_obj).__name__} pada kolom {t_cols[:3]}...") # Tampilkan beberapa kolom awal
+                else:
+                    st.text(f"  Estimator: {type(step_estimator).__name__}")
+        else:
+            st.text(f"Objek model tunggal: {type(pipeline_model).__name__}")
 
+        # Tampilkan parameter model akhir (XGBoost)
         try:
             actual_model_estimator = None
-            if hasattr(pipeline_model, 'steps'): 
-                final_step_estimator = pipeline_model.steps[-1][1] 
-                if hasattr(final_step_estimator, 'regressor') and hasattr(final_step_estimator.regressor, 'get_params'): 
-                     actual_model_estimator = final_step_estimator.regressor
-                elif hasattr(final_step_estimator, 'get_params'): 
+            # Coba akses model akhir dari pipeline
+            if hasattr(pipeline_model, 'steps'): # Jika pipeline_model adalah objek Pipeline
+                # Asumsi model regresi adalah langkah terakhir
+                final_step_estimator = pipeline_model.steps[-1][1]
+                
+                # Jika model dibungkus oleh TransformedTargetRegressor
+                if hasattr(final_step_estimator, 'regressor_') and hasattr(final_step_estimator.regressor_, 'get_params'):
+                     actual_model_estimator = final_step_estimator.regressor_ # Akses regressor yang sudah di-fit
+                elif hasattr(final_step_estimator, 'regressor') and hasattr(final_step_estimator.regressor, 'get_params'):
+                     actual_model_estimator = final_step_estimator.regressor # Untuk TransformedTargetRegressor sebelum fit
+                elif hasattr(final_step_estimator, 'get_params'): # Jika langkah terakhir adalah model itu sendiri
                     actual_model_estimator = final_step_estimator
+            # Jika pipeline_model BUKAN Pipeline, tapi mungkin TTR atau model itu sendiri
+            elif hasattr(pipeline_model, 'regressor_') and hasattr(pipeline_model.regressor_, 'get_params'):
+                 actual_model_estimator = pipeline_model.regressor_
+            elif hasattr(pipeline_model, 'regressor') and hasattr(pipeline_model.regressor, 'get_params'):
+                 actual_model_estimator = pipeline_model.regressor
+            elif hasattr(pipeline_model, 'get_params'):
+                actual_model_estimator = pipeline_model
             
             if actual_model_estimator and hasattr(actual_model_estimator, 'get_params'):
-                st.markdown("Parameter Model XGBoost (dari pipeline):")
-                st.json(actual_model_estimator.get_params(), expanded=False)
+                st.markdown("**Parameter Model XGBoost (Estimator Inti):**")
+                # Tampilkan parameter dengan cara yang lebih aman
+                params_to_show = {k: str(v) for k, v in actual_model_estimator.get_params(deep=False).items()}
+                st.json(params_to_show, expanded=False)
             else:
                 st.warning("Tidak dapat mengekstrak parameter model XGBoost secara detail dari pipeline.")
         except Exception as e:
