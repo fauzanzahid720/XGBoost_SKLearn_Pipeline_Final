@@ -4,4 +4,3 @@ numpy>=1.26.4
 scikit-learn>=1.4.0
 xgboost>=2.0.3
 ipywidgets>=8.0.0
-scipy>=1.8.0 # Tambahkan ini jika Anda menggunakan winsorize dari scipy
